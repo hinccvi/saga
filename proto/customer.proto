@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package v1.customer;
+
+import "validate/validate.proto";
+
+option go_package = "github.com/hinccvi/saga/proto/pb";
+
+service CustomerService {
+  rpc CreateCustomer (CreateCustomerRequest) returns (CreateCustomerReply) {}
+}
+
+message CreateCustomerRequest {
+  string name = 1;
+  int32 amount = 2 [(validate.rules).int32 = {ignore_empty:true, gte:1}];
+}
+
+message CreateCustomerReply {
+  string customer_id = 1;
+}

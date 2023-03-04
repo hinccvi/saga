@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package v1.order;
+
+import "validate/validate.proto";
+
+option go_package = "github.com/hinccvi/saga/proto/pb";
+
+service OrderService {
+  rpc CreateOrder (CreateOrderRequest) returns (CreateOrderReply) {}
+  rpc GetOrderStatus (GetOrderStatusRequest) returns (GetOrderStatusReply) {}
+}
+
+message OrderDetail {
+  int32 amount = 1 [(validate.rules).int32 = {ignore_empty:true, gte:1}];
+}
+
+message CreateOrderRequest {
+  string id = 1 [(validate.rules).string.uuid = true];
+  OrderDetail order_detail = 2;
+}
+
+message CreateOrderReply {
+  string id = 1;
+}
+
+message GetOrderStatusRequest {
+  string id = 1 [(validate.rules).string.uuid = true];
+}
+
+message GetOrderStatusReply {
+  string id = 1;
+  string state = 2;
+}

@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package v1.order_history;
+
+import "validate/validate.proto";
+
+option go_package = "github.com/hinccvi/saga/proto/pb";
+
+service OrderHistoryService {
+  rpc GetOrderHistory (GetOrderHistoryRequest) returns (GetOrderHistoryReply) {}
+}
+
+message Order {
+  string order_id = 1;
+  string state = 2;
+  OrderHistoryDetail order_history_detail = 3;
+}
+
+message OrderHistoryDetail {
+  int32 amount = 1 [(validate.rules).int32 = {ignore_empty:true, gte:1}];
+}
+
+message CreditLimit {
+  string amount = 1;
+}
+
+message GetOrderHistoryRequest {
+  string customer_id = 1 [(validate.rules).string.uuid = true];
+}
+
+message GetOrderHistoryReply {
+  string customer_id = 1;
+  repeated Order orders = 2;
+  string name = 3;
+  CreditLimit credit_limit = 4;
+}

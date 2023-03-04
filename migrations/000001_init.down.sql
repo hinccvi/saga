@@ -1,0 +1,8 @@
+BEGIN;
+
+DROP TABLE IF EXISTS "order";
+DROP TABLE IF EXISTS "customer";
+
+DROP EXTENSION IF NOT EXISTS "uuid-ossp";
+
+COMMIT;
