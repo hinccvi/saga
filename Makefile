@@ -32,11 +32,11 @@ test-cover: test ## run unit tests and show test coverage information
 	go tool cover -html=coverage-all.out
 
 .PHONY: run-customer
-run: ## run the customer service
+run-customer: ## run the customer service
 	go run ${LDFLAGS} cmd/customer/main.go
 
 .PHONY: run-order
-run: ## run the order service
+run-order: ## run the order service
 	go run ${LDFLAGS} cmd/order/main.go
 
 .PHONY: build

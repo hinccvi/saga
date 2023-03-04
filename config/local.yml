@@ -1,6 +1,5 @@
 app:
-  name: sample-app.com
-  port: 50051
+  name: customer.com
   cert: "./testdata/x509/cert.pem"
   key: "./testdata/x509/key.pem"
 

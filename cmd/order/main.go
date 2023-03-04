@@ -29,9 +29,10 @@ import (
 var (
 	//nolint:gochecknoglobals // value of ldflags must be a package level variable
 	Version = "1.0.0"
-
 	//nolint:gochecknoglobals // environment flag that only used in main
 	flagEnv = flag.String("env", "local", "environment")
+	//nolint:gochecknoglobals // grpc port
+	port = 50052
 )
 
 func main() {
@@ -44,7 +45,7 @@ func main() {
 	logger := log.NewWithZap(log.New(*flagEnv, log.ErrorLog)).With(ctx, "version", Version)
 
 	// load application configurations
-	cfg, err := config.Load(*flagEnv)
+	cfg, err := config.Load("order", *flagEnv)
 	if err != nil {
 		logger.Fatalf("fail to load app config: %v", err)
 	}
@@ -61,7 +62,7 @@ func main() {
 		logger.Fatalf("fail to connect to redis: %v", err)
 	}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", cfg.App.Port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)
 	}

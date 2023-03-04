@@ -15,7 +15,7 @@ func TestConnect(t *testing.T) {
 
 	flag.Parse()
 
-	cfg, err := config.Load(*flagMode)
+	cfg, err := config.Load("customer", *flagMode)
 	assert.Nil(t, err)
 	assert.False(t, reflect.DeepEqual(config.Config{}, cfg))
 

@@ -7,7 +7,6 @@ import (
 type Config struct {
 	App struct {
 		Name string `mapstructure:"name"`
-		Port int    `mapstructure:"port"`
 		Cert string `mapstructure:"cert"`
 		Key  string `mapstructure:"key"`
 	} `mapstructure:"app"`
@@ -34,14 +33,14 @@ type Config struct {
 	} `mapstructure:"redis"`
 }
 
-func Load(env string) (Config, error) {
+func Load(service, env string) (Config, error) {
 	file := env
 
 	viper.SetConfigName(file)
 	viper.SetConfigType("yml")
-	viper.AddConfigPath("./config")
-	viper.AddConfigPath("../../config")
-	viper.AddConfigPath("../../../config")
+	viper.AddConfigPath("./config/")
+	viper.AddConfigPath("../../config/")
+	viper.AddConfigPath("../../../config/")
 
 	conf := new(Config)
 

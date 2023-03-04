@@ -17,14 +17,14 @@ func TestLoad_Ok(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		cfg, err := Load(test.Env)
+		cfg, err := Load("customer", test.Env)
 		assert.NotNil(t, cfg)
 		assert.Nil(t, err)
 	}
 }
 
 func TestLoad_Fail(t *testing.T) {
-	cfg, err := Load("test")
+	cfg, err := Load("customer", "test")
 	assert.Equal(t, Config{}, cfg)
 	assert.NotNil(t, err)
 }

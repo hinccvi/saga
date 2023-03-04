@@ -16,7 +16,7 @@ var flagMode = flag.String("env", "local", "environment")
 func TestConnect(t *testing.T) {
 	flag.Parse()
 
-	cfg, err := config.Load(*flagMode)
+	cfg, err := config.Load("customer", *flagMode)
 	assert.Nil(t, err)
 	assert.False(t, reflect.DeepEqual(config.Config{}, cfg))
 
@@ -32,7 +32,7 @@ func TestConnect_WhenConfigIsEmpty(t *testing.T) {
 }
 
 func TestConnect_WhenInvalidDSN(t *testing.T) {
-	cfg, err := config.Load(*flagMode)
+	cfg, err := config.Load("customer", *flagMode)
 	cfg.Dsn = "xxx"
 
 	assert.Nil(t, err)
