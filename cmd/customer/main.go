@@ -62,7 +62,7 @@ func main() {
 	cs := customerService.New(cfg, customerRepo.New(db, logger), logger, t)
 
 	// setup kafka consumer / writer
-	handler := k.RegisterOrderHandlers(
+	handler := k.RegisterCustomerHandlers(
 		cfg.Kafka.Host,
 		cfg.Kafka.OrderGroupID,
 		cfg.Kafka.OrderWALTopic,

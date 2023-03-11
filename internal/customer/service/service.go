@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -65,7 +66,7 @@ func (s service) ReserveCredit(ctx context.Context, req ReserveCreditRequest) er
 
 	creditLimit, err := s.repo.GetCreditLimit(ctx, req.CustomerID)
 	if err != nil {
-		return err
+		return fmt.Errorf("[ReserveCredit] internal error: %w", err)
 	}
 
 	w := &kafka.Writer{
@@ -73,36 +74,45 @@ func (s service) ReserveCredit(ctx context.Context, req ReserveCreditRequest) er
 		Balancer: &kafka.LeastBytes{},
 	}
 
-	if creditLimit.Sub(req.Amount).LessThan(decimal.Zero) {
+	bytes, err := json.Marshal(struct {
+		OrderID uuid.UUID `json:"order_id"`
+	}{
+		req.OrderID,
+	})
+	if err != nil {
+		return fmt.Errorf("[ReserveCredit] internal error: %w", err)
+	}
+
+	if req.Amount.GreaterThan(creditLimit) {
 		w.Topic = s.cfg.Kafka.CustomerCreditLimitExceededTopic
 
 		err = w.WriteMessages(ctx,
 			kafka.Message{
-				Value: []byte(req.OrderID.String()),
+				Value: bytes,
 			},
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("[ReserveCredit] internal error: %w", err)
 		}
 	} else {
-		if err := s.repo.UpdateCreditLimit(ctx, req.CustomerID, req.Amount); err != nil {
-			return err
+		if err = s.repo.UpdateCreditLimit(ctx, req.CustomerID, req.Amount); err != nil {
+			return fmt.Errorf("[ReserveCredit] internal error: %w", err)
 		}
 
 		w.Topic = s.cfg.Kafka.CustomerCreditReservedTopic
 
 		err = w.WriteMessages(ctx,
 			kafka.Message{
-				Value: []byte(req.OrderID.String()),
+				Value: bytes,
 			},
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("[ReserveCredit] internal error: %w", err)
 		}
 	}
 
 	if err = w.Close(); err != nil {
-		return err
+		return fmt.Errorf("[ReserveCredit] internal error: %w", err)
 	}
 
 	return nil

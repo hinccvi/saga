@@ -26,7 +26,7 @@ type (
 		logger   log.Logger
 		service  service.Service
 	}
-	orderMessage struct {
+	orderWALMessage struct {
 		Schema struct {
 			Fields []struct {
 				Fields []struct {
@@ -47,13 +47,18 @@ type (
 	}
 )
 
-func RegisterOrderHandlers(host, groupID, topic string, service service.Service, logger log.Logger) resource {
+const (
+	minMessageBytes int = 10e3
+	maxMessageBytes int = 10e6
+)
+
+func RegisterCustomerHandlers(host, groupID, topic string, service service.Service, logger log.Logger) resource {
 	return resource{
 		host:     host,
 		groupID:  groupID,
 		topic:    topic,
-		minBytes: 10e3,
-		maxBytes: 10e6,
+		minBytes: minMessageBytes,
+		maxBytes: maxMessageBytes,
 		logger:   logger,
 		service:  service,
 	}
@@ -74,23 +79,23 @@ func (r resource) StartConsumer(ctx context.Context) <-chan error {
 		for {
 			m, err := reader.ReadMessage(ctx)
 			if err != nil {
-				r.logger.Errorf("[OrderStartConsumer] internal error: %w", err)
+				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
 				break
 			}
 
-			var om orderMessage
-			if err := json.Unmarshal(m.Value, &om); err != nil {
-				r.logger.Errorf("[OrderStartConsumer] internal error: %w", err)
+			var om orderWALMessage
+			if err = json.Unmarshal(m.Value, &om); err != nil {
+				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
 			}
 
 			orderTotalByte, err := base64.StdEncoding.DecodeString(om.Payload.After.OrderTotal)
 			if err != nil {
-				r.logger.Errorf("[OrderStartConsumer] internal error: %w", err)
+				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
 			}
 
 			scale, err := strconv.Atoi(om.Schema.Fields[1].Fields[2].Parameters.Scale)
 			if err != nil {
-				r.logger.Errorf("[OrderStartConsumer] internal error: %w", err)
+				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
 			}
 
 			orderTotal := decimal.NewFromBigInt(new(big.Int).SetBytes(orderTotalByte), -int32(scale))
@@ -100,13 +105,13 @@ func (r resource) StartConsumer(ctx context.Context) <-chan error {
 				CustomerID: om.Payload.After.CustomerID,
 				Amount:     orderTotal,
 			}
-			if err := r.service.ReserveCredit(ctx, req); err != nil {
-				r.logger.Errorf("[OrderStartConsumer] internal error: %w", err)
+			if err = r.service.ReserveCredit(ctx, req); err != nil {
+				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
 			}
 		}
 
 		if err := reader.Close(); err != nil {
-			errCh <- fmt.Errorf("[OrderStartConsumer] internal error: %w", err)
+			errCh <- fmt.Errorf("[startCustomerConsumer] internal error: %w", err)
 		}
 	}()
 

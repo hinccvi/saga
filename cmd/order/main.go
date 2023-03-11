@@ -15,6 +15,7 @@ import (
 	"github.com/hinccvi/saga/internal/config"
 	healthcheckPB "github.com/hinccvi/saga/internal/healthcheck/controller/grpc"
 	v1OrderPB "github.com/hinccvi/saga/internal/order/controller/grpc/v1"
+	k "github.com/hinccvi/saga/internal/order/controller/kafka"
 	orderRepo "github.com/hinccvi/saga/internal/order/repository"
 	orderService "github.com/hinccvi/saga/internal/order/service"
 	"github.com/hinccvi/saga/pkg/db"
@@ -55,6 +56,37 @@ func main() {
 		logger.Fatalf("fail to connect to db: %v", err)
 	}
 
+	// timeout duration for each request
+	t := time.Duration(cfg.Context.Timeout) * time.Second
+
+	oss := orderService.New(orderRepo.New(db, logger), logger, t)
+
+	// setup kafka consumer / writer
+	handler := k.RegisterOrderHandlers(
+		cfg.Kafka.Host,
+		cfg.Kafka.CustomerGroupID,
+		cfg.Kafka.CustomerCreditReservedTopic,
+		cfg.Kafka.CustomerCreditLimitExceededTopic,
+		oss,
+		logger,
+	)
+	go func() {
+		for {
+			select {
+			case err := <-handler.StartCreditReservedConsumer(ctx):
+				logger.Fatalf("fail to consume credit reserved topic: %v", err)
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case err := <-handler.StartCreditLimitExceededConsumer(ctx):
+				logger.Fatalf("fail to consume credit limit exceeded topic: %v", err)
+			}
+		}
+	}()
+
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)
@@ -80,9 +112,6 @@ func main() {
 			)),
 	}
 
-	// timeout duration for each request
-	t := time.Duration(cfg.Context.Timeout) * time.Second
-
 	// register grpc server
 	grpcServer := grpc.NewServer(opts...)
 
@@ -93,7 +122,7 @@ func main() {
 
 	pb.RegisterOrderServiceServer(
 		grpcServer,
-		v1OrderPB.RegisterHandlers(orderService.New(orderRepo.New(db, logger), logger, t), logger),
+		v1OrderPB.RegisterHandlers(oss, logger),
 	)
 
 	// seperate goroutine to listen on kill signal

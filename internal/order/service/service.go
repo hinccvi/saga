@@ -15,6 +15,8 @@ import (
 type (
 	Service interface {
 		CreateOrder(ctx context.Context, req CreateOrderRequest) (uuid.UUID, error)
+		ApproveOrder(ctx context.Context, id uuid.UUID) error
+		RejectOrder(ctx context.Context, id uuid.UUID) error
 	}
 
 	service struct {
@@ -48,4 +50,34 @@ func (s service) CreateOrder(ctx context.Context, req CreateOrderRequest) (uuid.
 	}
 
 	return id, nil
+}
+
+func (s service) ApproveOrder(ctx context.Context, id uuid.UUID) error {
+	ctx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+
+	o := entity.Order{
+		ID:    id,
+		State: entity.OrderApproved,
+	}
+	if err := s.repo.UpdateOrderState(ctx, o); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s service) RejectOrder(ctx context.Context, id uuid.UUID) error {
+	ctx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+
+	o := entity.Order{
+		ID:    id,
+		State: entity.OrderRejected,
+	}
+	if err := s.repo.UpdateOrderState(ctx, o); err != nil {
+		return err
+	}
+
+	return nil
 }
