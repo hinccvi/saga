@@ -7,11 +7,14 @@ import (
 	"github.com/hinccvi/saga/internal/entity"
 	"github.com/hinccvi/saga/pkg/log"
 	"github.com/jmoiron/sqlx"
+	"github.com/shopspring/decimal"
 )
 
 type (
 	Repository interface {
 		CreateCustomer(ctx context.Context, c entity.Customer) (uuid.UUID, error)
+		GetCreditLimit(ctx context.Context, id uuid.UUID) (decimal.Decimal, error)
+		UpdateCreditLimit(ctx context.Context, id uuid.UUID, amount decimal.Decimal) error
 	}
 	repository struct {
 		db     *sqlx.DB
@@ -20,7 +23,9 @@ type (
 )
 
 const (
-	createCustomer string = `INSERT INTO customer (name, credit_limit) VALUES (:name, :credit_limit) RETURNING id`
+	createCustomerQuery    string = `INSERT INTO customer (name, credit_limit) VALUES (:name, :credit_limit) RETURNING id`
+	getCreditLimitQuery    string = `SELECT credit_limit FROM customer WHERE id = $1`
+	updateCreditLimitQuery string = `UPDATE customer SET credit_limit = $1 WHERE id = $2`
 )
 
 func New(db *sqlx.DB, logger log.Logger) Repository {
@@ -28,7 +33,7 @@ func New(db *sqlx.DB, logger log.Logger) Repository {
 }
 
 func (r repository) CreateCustomer(ctx context.Context, c entity.Customer) (uuid.UUID, error) {
-	createCustomerStmt, err := r.db.PrepareNamedContext(ctx, createCustomer)
+	createCustomerStmt, err := r.db.PrepareNamedContext(ctx, createCustomerQuery)
 	if err != nil {
 		return uuid.UUID{}, err
 	}
@@ -39,4 +44,33 @@ func (r repository) CreateCustomer(ctx context.Context, c entity.Customer) (uuid
 	}
 
 	return c.ID, nil
+}
+
+func (r repository) GetCreditLimit(ctx context.Context, id uuid.UUID) (decimal.Decimal, error) {
+	getCreditLimitStmt, err := r.db.PreparexContext(ctx, getCreditLimitQuery)
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+	defer getCreditLimitStmt.Close()
+
+	var c entity.Customer
+	if err = getCreditLimitStmt.GetContext(ctx, &c, id); err != nil {
+		return decimal.Decimal{}, err
+	}
+
+	return c.CreditLimit, nil
+}
+
+func (r repository) UpdateCreditLimit(ctx context.Context, id uuid.UUID, amount decimal.Decimal) error {
+	updateCreditLimitStmt, err := r.db.PreparexContext(ctx, updateCreditLimitQuery)
+	if err != nil {
+		return err
+	}
+	defer updateCreditLimitStmt.Close()
+
+	if _, err := updateCreditLimitStmt.ExecContext(ctx, amount, id); err != nil {
+		return err
+	}
+
+	return nil
 }

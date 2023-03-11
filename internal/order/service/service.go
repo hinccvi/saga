@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/hinccvi/saga/internal/entity"
 	"github.com/hinccvi/saga/internal/order/repository"
@@ -19,7 +18,6 @@ type (
 	}
 
 	service struct {
-		rds     redis.Client
 		repo    repository.Repository
 		logger  log.Logger
 		timeout time.Duration
@@ -31,8 +29,8 @@ type (
 	}
 )
 
-func New(rds redis.Client, repo repository.Repository, logger log.Logger, timeout time.Duration) Service {
-	return service{rds, repo, logger, timeout}
+func New(repo repository.Repository, logger log.Logger, timeout time.Duration) Service {
+	return service{repo, logger, timeout}
 }
 
 func (s service) CreateOrder(ctx context.Context, req CreateOrderRequest) (uuid.UUID, error) {

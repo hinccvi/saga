@@ -24,13 +24,15 @@ type Config struct {
 
 	Dsn string `mapstructure:"dsn"`
 
-	Redis struct {
-		Host     string `mapstructure:"host"`
-		Port     int    `mapstructure:"port"`
-		Password string `mapstructure:"password"`
-		DB       int    `mapstructure:"db"`
-		PoolSize int    `mapstructure:"pool_size"`
-	} `mapstructure:"redis"`
+	Kafka struct {
+		Host                             string `mapstructure:"host"`
+		CustomerGroupID                  string `mapstructure:"customer_group_id"`
+		OrderGroupID                     string `mapstructure:"order_group_id"`
+		OrderWALTopic                    string `mapstructure:"order_wal_topic"`
+		CustomerWALTopic                 string `mapstructure:"customer_wal_topic"`
+		CustomerCreditReservedTopic      string `mapstructure:"customer_credit_reserved_topic"`
+		CustomerCreditLimitExceededTopic string `mapstructure:"customer_credit_limit_exceeded_topic"`
+	} `mapstructure:"kafka"`
 }
 
 func Load(service, env string) (Config, error) {

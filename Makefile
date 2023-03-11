@@ -2,6 +2,7 @@ MODULE = $(shell go list -m)
 VERSION ?= $(shell git describe --tags --always --dirty --match=v* 2> /dev/null || echo "1.0.0")
 PACKAGES := $(shell go list ./... | grep -v -e server -e test -e middleware -e entity -e constants -e mocks -e errors -e proto -e jwt | sort -r )
 LDFLAGS := -ldflags "-X main.Version=${VERSION}"
+HOST_IP ?= $(shell ifconfig | grep -E "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v 127.0.0.1 | awk '{print $$2}' | cut -f2 -d: |head -n1)
 
 CONFIG_FILE ?= ./config/local.yml
 APP_DSN ?= $(shell sed -n 's/^dsn:[[:space:]]*"\(.*\)"/\1/p' $(CONFIG_FILE))
@@ -69,41 +70,59 @@ version: ## display the version of the API server
 db-start: ## start the database server
 	@mkdir -p testdata/postgres
 	docker run --rm --name postgres -v $(shell pwd)/testdata:/testdata \
+		--network app-tier \
 		-v $(shell pwd)/testdata/postgres:/var/lib/postgresql/data \
-		-e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -d -p 5432:5432 postgres
+		-e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -d -p 5432:5432 postgres \
+		-c wal_level=logical \
+		-c max_wal_senders=8 \
+		-c max_replication_slots=4 \
+		-c listen_addresses=*
 
 .PHONY: db-stop
 db-stop: ## stop the database server
 	docker stop postgres
 
-.PHONY: redis-start
-redis-start: ## start the redis server
-	@mkdir -p $(shell pwd)/testdata/redis
-	@cp  $(shell pwd)/config/redis.conf $(shell pwd)/testdata/redis/redis.conf
-	docker run --rm --name redis \
-		-v $(shell pwd)/testdata/redis:/usr/local/etc/redis \
-		-d -p 6379:6379 redis redis-server /usr/local/etc/redis/redis.conf
+.PHONY: zookeeper-start
+zookeeper-start: ## start the zookeeper
+	docker run --rm -dp 2181:2181 --name zookeeper \
+		--network app-tier \
+		debezium/zookeeper:latest
 
-.PHONY: redis-stop
-redis-stop: ## stop the redis server
-	docker stop redis
+.PHONY: kafka-start
+kafka-start: ## start the kafka server
+	@mkdir -p testdata/kafka
+	docker run --rm -dp 9092:9092 --name kafka \
+    --network app-tier \
+		-e KAFKA_ADVERTISED_HOST_NAME=$(HOST_IP) \
+    -e KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181 \
+		-e KAFKA_AUTO_CREATE_TOPICS_ENABLE='true' \
+		-e KAFKA_DELETE_TOPIC_ENABLE='true' \
+		-e ZOOKEEPER_CONNECT=zookeeper:2181 \
+		-v $(shell pwd)/testdata/kafka:/kafka/data \
+    debezium/kafka:latest
 
-.PHONY: nginx-start
-nginx-start: ## start the nginx server
-	@mkdir -p $(shell pwd)/testdata/nginx
-	@touch $(shell pwd)/testdata/nginx/access.log
-	@touch $(shell pwd)/testdata/nginx/error.log
-	@cp  $(shell pwd)/deployments/nginx.conf $(shell pwd)/testdata/nginx/nginx.conf
-	docker run --rm --name nginx \
-		-v $(shell pwd)/testdata/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
-		-v $(shell pwd)/testdata/nginx:/var/log/nginx \
-		-v $(shell pwd)/testdata/nginx:/var/log/nginx \
-		-v $(shell pwd)/testdata/nginx:/tmp/cache \
-		-dp 80:80 nginx nginx-debug -g 'daemon off;'
+.PHONY: connector-start
+connector-start: ## start the kafka connector
+	docker run --rm -dp 8083:8083 --name connector \
+		--network app-tier \
+		-e BOOTSTRAP_SERVERS=kafka:9092 \
+		-e GROUP_ID=pg \
+		-e CONFIG_STORAGE_TOPIC=pg_connect_configs \
+		-e OFFSET_STORAGE_TOPIC=pg_connect_offsets \
+		-e STATUS_STORATE-TOPIC=pg_connect_statuses \
+		debezium/connect:latest
 
-.PHONY: nginx-stop
-nginx-stop: ## stop the nginx server
-	docker stop nginx
+.PHONY: zookeeper-stop
+zookeeper-stop: ## stop the zookeeper server
+	docker stop kafka 
+
+.PHONY: kafka-stop
+kafka-stop: ## stop the kafka server
+	docker stop zookeeper
+
+.PHONY: connector-stop
+connector-stop: ## stop the connector server
+	docker stop connector
 
 .PHONY: testdata
 testdata: ## populate the database with test data

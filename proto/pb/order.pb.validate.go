@@ -174,9 +174,9 @@ func (m *CreateOrderRequest) validate(all bool) error {
 
 	var errors []error
 
-	if err := m._validateUuid(m.GetId()); err != nil {
+	if err := m._validateUuid(m.GetCustomerId()); err != nil {
 		err = CreateOrderRequestValidationError{
-			field:  "Id",
+			field:  "CustomerId",
 			reason: "value must be a valid UUID",
 			cause:  err,
 		}

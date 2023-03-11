@@ -14,9 +14,11 @@ jwt:
 
 dsn: "postgresql://localhost/postgres?sslmode=disable&user=postgres&password=postgres"
 
-redis:
-  host: "127.0.0.1"
-  port: 6379
-  password: redis
-  db: 0
-  pool_size: 500
+kafka:
+  host: "localhost:9092"
+  customer_group_id: "customer-consumer"
+  order_group_id: "order-consumer"
+  order_wal_topic: "saga.public.order"
+  customer_wal_topic: "saga.public.customer"
+  customer_credit_reserved_topic: "saga.customer.credit_reserved"
+  customer_credit_limit_exceeded_topic: "saga.customer.credit_limit_exceeded"

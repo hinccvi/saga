@@ -22,7 +22,7 @@ func RegisterHandlers(service service.Service, logger log.Logger) resource {
 }
 
 func (r resource) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (rep *pb.CreateOrderReply, err error) {
-	id, err := uuid.Parse(req.Id)
+	id, err := uuid.Parse(req.CustomerId)
 	if err != nil {
 		return &pb.CreateOrderReply{}, err
 	}

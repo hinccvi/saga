@@ -14,12 +14,12 @@ import (
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/hinccvi/saga/internal/config"
 	v1CustomerPB "github.com/hinccvi/saga/internal/customer/controller/grpc/v1"
+	k "github.com/hinccvi/saga/internal/customer/controller/kafka"
 	customerRepo "github.com/hinccvi/saga/internal/customer/repository"
 	customerService "github.com/hinccvi/saga/internal/customer/service"
 	healthcheckPB "github.com/hinccvi/saga/internal/healthcheck/controller/grpc"
 	"github.com/hinccvi/saga/pkg/db"
 	"github.com/hinccvi/saga/pkg/log"
-	rds "github.com/hinccvi/saga/pkg/redis"
 	"github.com/hinccvi/saga/proto/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -56,11 +56,27 @@ func main() {
 		logger.Fatalf("fail to connect to db: %v", err)
 	}
 
-	// connect to redis
-	rds, err := rds.Connect(ctx, &cfg)
-	if err != nil {
-		logger.Fatalf("fail to connect to redis: %v", err)
-	}
+	// timeout duration for each request
+	t := time.Duration(cfg.Context.Timeout) * time.Second
+
+	cs := customerService.New(cfg, customerRepo.New(db, logger), logger, t)
+
+	// setup kafka consumer / writer
+	handler := k.RegisterOrderHandlers(
+		cfg.Kafka.Host,
+		cfg.Kafka.OrderGroupID,
+		cfg.Kafka.OrderWALTopic,
+		cs,
+		logger,
+	)
+	go func() {
+		for {
+			select {
+			case err := <-handler.StartConsumer(ctx):
+				logger.Fatalf("fail to consume kafka: %v", err)
+			}
+		}
+	}()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
@@ -87,9 +103,6 @@ func main() {
 			)),
 	}
 
-	// timeout duration for each request
-	t := time.Duration(cfg.Context.Timeout) * time.Second
-
 	// register grpc server
 	grpcServer := grpc.NewServer(opts...)
 
@@ -100,7 +113,7 @@ func main() {
 
 	pb.RegisterCustomerServiceServer(
 		grpcServer,
-		v1CustomerPB.RegisterHandlers(customerService.New(rds, customerRepo.New(db, logger), logger, t), logger),
+		v1CustomerPB.RegisterHandlers(cs, logger),
 	)
 
 	// seperate goroutine to listen on kill signal

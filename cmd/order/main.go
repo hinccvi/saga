@@ -19,7 +19,6 @@ import (
 	orderService "github.com/hinccvi/saga/internal/order/service"
 	"github.com/hinccvi/saga/pkg/db"
 	"github.com/hinccvi/saga/pkg/log"
-	rds "github.com/hinccvi/saga/pkg/redis"
 	"github.com/hinccvi/saga/proto/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -54,12 +53,6 @@ func main() {
 	db, err := db.Connect(ctx, &cfg)
 	if err != nil {
 		logger.Fatalf("fail to connect to db: %v", err)
-	}
-
-	// connect to redis
-	rds, err := rds.Connect(ctx, &cfg)
-	if err != nil {
-		logger.Fatalf("fail to connect to redis: %v", err)
 	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
@@ -100,7 +93,7 @@ func main() {
 
 	pb.RegisterOrderServiceServer(
 		grpcServer,
-		v1OrderPB.RegisterHandlers(orderService.New(rds, orderRepo.New(db, logger), logger, t), logger),
+		v1OrderPB.RegisterHandlers(orderService.New(orderRepo.New(db, logger), logger, t), logger),
 	)
 
 	// seperate goroutine to listen on kill signal

@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS "customer" (
   created_at    timestamp WITHOUT TIME ZONE NOT NULL DEFAULT (current_timestamp AT TIME ZONE 'UTC'),
   PRIMARY KEY (id)
 );
+ALTER TABLE "customer" REPLICA IDENTITY USING INDEX customer_pkey;
 
 CREATE TABLE IF NOT EXISTS "order" (
   id  UUID  DEFAULT uuid_generate_v4(),

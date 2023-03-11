@@ -16,7 +16,7 @@ message OrderDetail {
 }
 
 message CreateOrderRequest {
-  string id = 1 [(validate.rules).string.uuid = true];
+  string customer_id = 1 [(validate.rules).string.uuid = true];
   OrderDetail order_detail = 2;
 }
 

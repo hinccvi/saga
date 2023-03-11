@@ -1,0 +1,16 @@
+{
+  "name": "pg-orders-source",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgres",
+    "database.dbname": "postgres",
+    "database.server.name": "docker",
+    "plugin.name": "pgoutput",
+    "table.include.list": "public.order",
+    "topic.prefix": "saga",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter"
+  }
+}
