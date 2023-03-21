@@ -15,10 +15,10 @@ import (
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/hinccvi/saga/internal/config"
 	healthcheckPB "github.com/hinccvi/saga/internal/healthcheck/controller/grpc"
-	v1OrderPB "github.com/hinccvi/saga/internal/order/controller/grpc/v1"
-	k "github.com/hinccvi/saga/internal/order/controller/kafka"
-	orderRepo "github.com/hinccvi/saga/internal/order/repository"
-	orderService "github.com/hinccvi/saga/internal/order/service"
+	v1OrderHistoryPB "github.com/hinccvi/saga/internal/orderHistory/controller/grpc/v1"
+	k "github.com/hinccvi/saga/internal/orderHistory/controller/kafka"
+	orderHistoryRepo "github.com/hinccvi/saga/internal/orderHistory/repository"
+	orderHistoryService "github.com/hinccvi/saga/internal/orderHistory/service"
 	"github.com/hinccvi/saga/pkg/db"
 	"github.com/hinccvi/saga/pkg/log"
 	"github.com/hinccvi/saga/proto/pb"
@@ -31,7 +31,7 @@ import (
 var (
 	Version = "1.0.0"
 	flagEnv = flag.String("env", "local", "environment")
-	port    = 50052
+	port    = 50053
 )
 
 func main() {
@@ -50,7 +50,7 @@ func main() {
 	}
 
 	// connect to database
-	db, err := db.ConnectPostgres(ctx, cfg.Postgres.Dsn)
+	db, err := db.ConnectMongo(ctx, cfg.Mongo.Dsn)
 	if err != nil {
 		logger.Fatalf("fail to connect to db: %v", err)
 	}
@@ -58,27 +58,22 @@ func main() {
 	// timeout duration for each request
 	t := time.Duration(cfg.Context.Timeout) * time.Second
 
-	oss := orderService.New(orderRepo.New(db, logger), logger, t)
+	ohs := orderHistoryService.New(orderHistoryRepo.New(db, logger), logger, t)
 
 	// setup kafka consumer / writer
-	handler := k.RegisterOrderHandlers(
+	handler := k.RegisterOrderHistoryHandlers(
 		cfg.Kafka.Host,
-		oss,
+		ohs,
 		logger,
 	)
 	go func() {
-		for err := range handler.StartCreditReservedConsumer(ctx) {
-			logger.Fatalf("fail to consume credit reserved topic: %v", err)
+		for err := range handler.StartCustomerWALConsumer(ctx) {
+			logger.Fatalf("fail to consume customer wal topic: %v", err)
 		}
 	}()
 	go func() {
-		for err := range handler.StartCreditReservationFailedConsumer(ctx) {
-			logger.Fatalf("fail to consume credit limit exceeded topic: %v", err)
-		}
-	}()
-	go func() {
-		for err := range handler.StartCustomerValidationFailedConsumer(ctx) {
-			logger.Fatalf("fail to consume customer validation failed topic: %v", err)
+		for err := range handler.StartOrderWALConsumer(ctx) {
+			logger.Fatalf("fail to consume order wal topic: %v", err)
 		}
 	}()
 
@@ -115,9 +110,9 @@ func main() {
 		healthcheckPB.RegisterHandlers(Version),
 	)
 
-	pb.RegisterOrderServiceServer(
+	pb.RegisterOrderHistoryServiceServer(
 		grpcServer,
-		v1OrderPB.RegisterHandlers(oss, logger),
+		v1OrderHistoryPB.RegisterHandlers(ohs, logger),
 	)
 
 	// seperate goroutine to listen on kill signal
@@ -126,11 +121,11 @@ func main() {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		<-quit
 
-		logger.Info("server shutting down")
+		logger.Info("Server shutting down")
 
 		grpcServer.GracefulStop()
 
-		logger.Info("server exiting")
+		logger.Info("Server exiting")
 	}()
 
 	logger.Infof("grpc server listening on %v", lis.Addr())

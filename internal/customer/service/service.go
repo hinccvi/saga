@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -40,6 +42,13 @@ type (
 	}
 )
 
+//nolint:gosec //false positive
+const (
+	creditReservedTopic      string = "saga.customer.credit_reserved"
+	creditReservationFailed  string = "saga.customer.credit_reservation_failed"
+	customerValidationFailed string = "saga.customer.validation_failed"
+)
+
 func New(cfg config.Config, repo repository.Repository, logger log.Logger, timeout time.Duration) Service {
 	return service{cfg, repo, logger, timeout}
 }
@@ -64,14 +73,19 @@ func (s service) ReserveCredit(ctx context.Context, req ReserveCreditRequest) er
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
-	creditLimit, err := s.repo.GetCreditLimit(ctx, req.CustomerID)
-	if err != nil {
-		return fmt.Errorf("[ReserveCredit] internal error: %w", err)
-	}
-
 	w := &kafka.Writer{
 		Addr:     kafka.TCP(s.cfg.Kafka.Host),
 		Balancer: &kafka.LeastBytes{},
+		Topic:    creditReservationFailed,
+	}
+
+	creditLimit, err := s.repo.GetCreditLimit(ctx, req.CustomerID)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		w.Topic = customerValidationFailed
+	}
+
+	if err == nil && req.Amount.LessThan(creditLimit) {
+		w.Topic = creditReservedTopic
 	}
 
 	bytes, err := json.Marshal(struct {
@@ -83,32 +97,13 @@ func (s service) ReserveCredit(ctx context.Context, req ReserveCreditRequest) er
 		return fmt.Errorf("[ReserveCredit] internal error: %w", err)
 	}
 
-	if req.Amount.GreaterThan(creditLimit) {
-		w.Topic = s.cfg.Kafka.CustomerCreditLimitExceededTopic
-
-		err = w.WriteMessages(ctx,
-			kafka.Message{
-				Value: bytes,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("[ReserveCredit] internal error: %w", err)
-		}
-	} else {
-		if err = s.repo.UpdateCreditLimit(ctx, req.CustomerID, req.Amount); err != nil {
-			return fmt.Errorf("[ReserveCredit] internal error: %w", err)
-		}
-
-		w.Topic = s.cfg.Kafka.CustomerCreditReservedTopic
-
-		err = w.WriteMessages(ctx,
-			kafka.Message{
-				Value: bytes,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("[ReserveCredit] internal error: %w", err)
-		}
+	err = w.WriteMessages(ctx,
+		kafka.Message{
+			Value: bytes,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("[ReserveCredit] internal error: %w", err)
 	}
 
 	if err = w.Close(); err != nil {

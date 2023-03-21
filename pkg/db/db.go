@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/hinccvi/saga/internal/config"
 	"github.com/jmoiron/sqlx"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	// postgres driver required by database/sql.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -16,10 +17,11 @@ const (
 	maxIdleConns   int           = 25
 	maxLifetime    time.Duration = 5 * time.Minute
 	contextTimeout time.Duration = 5 * time.Second
+	mongoDBName    string        = "saga"
 )
 
-func Connect(ctx context.Context, cfg *config.Config) (*sqlx.DB, error) {
-	db, err := sqlx.Open("pgx", cfg.Dsn)
+func ConnectPostgres(ctx context.Context, dsn string) (*sqlx.DB, error) {
+	db, err := sqlx.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -37,4 +39,17 @@ func Connect(ctx context.Context, cfg *config.Config) (*sqlx.DB, error) {
 	}
 
 	return db, nil
+}
+
+func ConnectMongo(ctx context.Context, dsn string) (*mongo.Client, error) {
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dsn))
+	if err != nil {
+		return &mongo.Client{}, err
+	}
+
+	if err = client.Ping(ctx, nil); err != nil {
+		return &mongo.Client{}, err
+	}
+
+	return client, nil
 }

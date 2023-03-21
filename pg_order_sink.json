@@ -1,5 +1,5 @@
 {
-  "name": "pg-orders-source",
+  "name": "pg-order-sink",
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "database.hostname": "postgres",
@@ -11,6 +11,7 @@
     "plugin.name": "pgoutput",
     "table.include.list": "public.order",
     "topic.prefix": "saga",
-    "value.converter": "org.apache.kafka.connect.json.JsonConverter"
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "slot.name": "order"
   }
 }

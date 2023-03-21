@@ -11,13 +11,13 @@ service OrderHistoryService {
 }
 
 message Order {
-  string order_id = 1;
+  string id = 1;
   string state = 2;
   OrderHistoryDetail order_history_detail = 3;
 }
 
 message OrderHistoryDetail {
-  int32 amount = 1 [(validate.rules).int32 = {ignore_empty:true, gte:1}];
+  string amount = 1;
 }
 
 message CreditLimit {

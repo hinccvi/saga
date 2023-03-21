@@ -20,24 +20,19 @@ func TestConnect(t *testing.T) {
 	assert.Nil(t, err)
 	assert.False(t, reflect.DeepEqual(config.Config{}, cfg))
 
-	db, err := Connect(context.TODO(), &cfg)
+	db, err := ConnectPostgres(context.TODO(), cfg.Postgres.Dsn)
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
 }
 
 func TestConnect_WhenConfigIsEmpty(t *testing.T) {
-	db, err := Connect(context.TODO(), &config.Config{})
+	db, err := ConnectPostgres(context.TODO(), "")
 	assert.NotNil(t, err)
 	assert.Nil(t, db)
 }
 
 func TestConnect_WhenInvalidDSN(t *testing.T) {
-	cfg, err := config.Load("customer", *flagMode)
-	cfg.Dsn = "xxx"
-
-	assert.Nil(t, err)
-
-	db, err := Connect(context.TODO(), &cfg)
+	db, err := ConnectPostgres(context.TODO(), "xxx")
 	assert.NotNil(t, err)
 	assert.Nil(t, db)
 }

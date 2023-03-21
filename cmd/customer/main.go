@@ -51,7 +51,7 @@ func main() {
 	}
 
 	// connect to database
-	db, err := db.Connect(ctx, &cfg)
+	db, err := db.ConnectPostgres(ctx, cfg.Postgres.Dsn)
 	if err != nil {
 		logger.Fatalf("fail to connect to db: %v", err)
 	}
@@ -64,17 +64,12 @@ func main() {
 	// setup kafka consumer / writer
 	handler := k.RegisterCustomerHandlers(
 		cfg.Kafka.Host,
-		cfg.Kafka.OrderGroupID,
-		cfg.Kafka.OrderWALTopic,
 		cs,
 		logger,
 	)
 	go func() {
-		for {
-			select {
-			case err := <-handler.StartConsumer(ctx):
-				logger.Fatalf("fail to consume kafka: %v", err)
-			}
+		for err := range handler.StartOrderWALConsumer(ctx) {
+			logger.Fatalf("fail to consume kafka: %v", err)
 		}
 	}()
 

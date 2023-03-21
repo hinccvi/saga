@@ -22,17 +22,17 @@ type Config struct {
 		RefreshExpiration int    `mapstructure:"refresh_expiration"`
 	} `mapstructure:"jwt"`
 
-	Dsn string `mapstructure:"dsn"`
+	Postgres struct {
+		Dsn string `mapstructure:"dsn"`
+	} `mapstructure:"postgres"`
 
 	Kafka struct {
-		Host                             string `mapstructure:"host"`
-		CustomerGroupID                  string `mapstructure:"customer_group_id"`
-		OrderGroupID                     string `mapstructure:"order_group_id"`
-		OrderWALTopic                    string `mapstructure:"order_wal_topic"`
-		CustomerWALTopic                 string `mapstructure:"customer_wal_topic"`
-		CustomerCreditReservedTopic      string `mapstructure:"customer_credit_reserved_topic"`
-		CustomerCreditLimitExceededTopic string `mapstructure:"customer_credit_limit_exceeded_topic"`
+		Host string `mapstructure:"host"`
 	} `mapstructure:"kafka"`
+
+	Mongo struct {
+		Dsn string `mapstructure:"dsn"`
+	} `mapstructure:"mongo"`
 }
 
 func Load(service, env string) (Config, error) {

@@ -21,7 +21,7 @@ func RegisterHandlers(service service.Service, logger log.Logger) resource {
 	return resource{logger: logger, service: service}
 }
 
-func (r resource) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (rep *pb.CreateOrderReply, err error) {
+func (r resource) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (*pb.CreateOrderReply, error) {
 	id, err := uuid.Parse(req.CustomerId)
 	if err != nil {
 		return &pb.CreateOrderReply{}, err
@@ -33,12 +33,12 @@ func (r resource) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (
 	}
 	id, err = r.service.CreateOrder(ctx, data)
 	if err != nil {
-		return
+		return &pb.CreateOrderReply{}, err
 	}
 
-	rep = &pb.CreateOrderReply{
+	rep := &pb.CreateOrderReply{
 		Id: id.String(),
 	}
 
-	return
+	return rep, nil
 }

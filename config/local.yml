@@ -12,13 +12,11 @@ jwt:
   refresh_signing_key: KQciMyZms5nBhiEwABX9srXPVCR9PFnka3Ci3SseB4XAjBU4OTVIj1jat5oLvhCv
   refresh_expiration: 10080
 
-dsn: "postgresql://localhost/postgres?sslmode=disable&user=postgres&password=postgres"
+postgres:
+  dsn: "postgresql://localhost/postgres?sslmode=disable&user=postgres&password=postgres"
 
 kafka:
   host: "localhost:9092"
-  customer_group_id: "customer-consumer"
-  order_group_id: "order-consumer"
-  order_wal_topic: "saga.public.order"
-  customer_wal_topic: "saga.public.customer"
-  customer_credit_reserved_topic: "saga.customer.credit_reserved"
-  customer_credit_limit_exceeded_topic: "saga.customer.credit_limit_exceeded"
+
+mongo:
+  dsn: "mongodb://mongo:mongo@localhost:27017"

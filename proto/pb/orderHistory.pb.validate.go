@@ -59,7 +59,7 @@ func (m *Order) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for OrderId
+	// no validation rules for Id
 
 	// no validation rules for State
 
@@ -191,20 +191,7 @@ func (m *OrderHistoryDetail) validate(all bool) error {
 
 	var errors []error
 
-	if m.GetAmount() != 0 {
-
-		if m.GetAmount() < 1 {
-			err := OrderHistoryDetailValidationError{
-				field:  "Amount",
-				reason: "value must be greater than or equal to 1",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-	}
+	// no validation rules for Amount
 
 	if len(errors) > 0 {
 		return OrderHistoryDetailMultiError(errors)

@@ -14,35 +14,32 @@ import (
 
 type (
 	resource struct {
-		host                     string
-		groupID                  string
-		creditReservedTopic      string
-		creditLimitExceededTopic string
-		minBytes                 int
-		maxBytes                 int
-		logger                   log.Logger
-		service                  service.Service
+		host    string
+		groupID string
+		logger  log.Logger
+		service service.Service
 	}
 	orderMessage struct {
 		OrderID uuid.UUID `json:"order_id"`
 	}
 )
 
+//nolint:gosec // false positive.
 const (
-	minMessageBytes int = 10e3
-	maxMessageBytes int = 10e6
+	minMessageBytes          int    = 10e3
+	maxMessageBytes          int    = 10e6
+	groupID                  string = "customer_group"
+	creditReservedTopic      string = "saga.customer.credit_reserved"
+	creditReservationFailed  string = "saga.customer.credit_reservation_failed"
+	customerValidationFailed string = "saga.customer.validation_failed"
 )
 
-func RegisterOrderHandlers(host, groupID, creditReservedTopic, creditLimitExceededTopic string, service service.Service, logger log.Logger) resource {
+func RegisterOrderHandlers(host string, service service.Service, logger log.Logger) resource {
 	return resource{
-		host:                     host,
-		groupID:                  groupID,
-		creditReservedTopic:      creditReservedTopic,
-		creditLimitExceededTopic: creditLimitExceededTopic,
-		minBytes:                 minMessageBytes,
-		maxBytes:                 maxMessageBytes,
-		logger:                   logger,
-		service:                  service,
+		host:    host,
+		groupID: groupID,
+		logger:  logger,
+		service: service,
 	}
 }
 
@@ -51,10 +48,10 @@ func (r resource) StartCreditReservedConsumer(ctx context.Context) <-chan error 
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{r.host},
-		GroupID:  r.groupID,
-		Topic:    r.creditReservedTopic,
-		MinBytes: r.minBytes,
-		MaxBytes: r.maxBytes,
+		GroupID:  groupID,
+		Topic:    creditReservedTopic,
+		MinBytes: minMessageBytes,
+		MaxBytes: maxMessageBytes,
 	})
 
 	go func() {
@@ -66,12 +63,14 @@ func (r resource) StartCreditReservedConsumer(ctx context.Context) <-chan error 
 			}
 
 			var om orderMessage
-			if err := json.Unmarshal(m.Value, &om); err != nil {
+			if err = json.Unmarshal(m.Value, &om); err != nil {
 				r.logger.Errorf("[startCreditReservedConsumer] internal error: %w", err)
+				continue
 			}
 
-			if err := r.service.ApproveOrder(ctx, om.OrderID); err != nil {
+			if err = r.service.ApproveOrder(ctx, om.OrderID); err != nil {
 				r.logger.Errorf("[startCreditReservedConsumer] internal error: %w", err)
+				continue
 			}
 		}
 
@@ -83,37 +82,78 @@ func (r resource) StartCreditReservedConsumer(ctx context.Context) <-chan error 
 	return errCh
 }
 
-func (r resource) StartCreditLimitExceededConsumer(ctx context.Context) <-chan error {
+func (r resource) StartCreditReservationFailedConsumer(ctx context.Context) <-chan error {
 	errCh := make(chan error)
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{r.host},
-		GroupID:  r.groupID,
-		Topic:    r.creditLimitExceededTopic,
-		MinBytes: r.minBytes,
-		MaxBytes: r.maxBytes,
+		GroupID:  groupID,
+		Topic:    creditReservationFailed,
+		MinBytes: minMessageBytes,
+		MaxBytes: maxMessageBytes,
 	})
 
 	go func() {
 		for {
 			m, err := reader.ReadMessage(ctx)
 			if err != nil {
-				r.logger.Errorf("[startCreditLimitExceededConsumer] internal error: %w", err)
+				r.logger.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
 				break
 			}
 
 			var om orderMessage
-			if err := json.Unmarshal(m.Value, &om); err != nil {
-				r.logger.Errorf("[startCreditLimitExceededConsumer] internal error: %w", err)
+			if err = json.Unmarshal(m.Value, &om); err != nil {
+				r.logger.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
+				continue
 			}
 
-			if err := r.service.RejectOrder(ctx, om.OrderID); err != nil {
-				r.logger.Errorf("[startCreditLimitExceededConsumer] internal error: %w", err)
+			if err = r.service.RejectOrder(ctx, om.OrderID); err != nil {
+				r.logger.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
+				continue
 			}
 		}
 
 		if err := reader.Close(); err != nil {
-			errCh <- fmt.Errorf("[startCreditLimitExceededConsumer] internal error: %w", err)
+			errCh <- fmt.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
+		}
+	}()
+
+	return errCh
+}
+
+func (r resource) StartCustomerValidationFailedConsumer(ctx context.Context) <-chan error {
+	errCh := make(chan error)
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:  []string{r.host},
+		GroupID:  groupID,
+		Topic:    customerValidationFailed,
+		MinBytes: minMessageBytes,
+		MaxBytes: maxMessageBytes,
+	})
+
+	go func() {
+		for {
+			m, err := reader.ReadMessage(ctx)
+			if err != nil {
+				r.logger.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
+				break
+			}
+
+			var om orderMessage
+			if err = json.Unmarshal(m.Value, &om); err != nil {
+				r.logger.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
+				continue
+			}
+
+			if err = r.service.RejectOrder(ctx, om.OrderID); err != nil {
+				r.logger.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
+				continue
+			}
+		}
+
+		if err := reader.Close(); err != nil {
+			errCh <- fmt.Errorf("[startCreditReservationFailedConsumer] internal error: %w", err)
 		}
 	}()
 

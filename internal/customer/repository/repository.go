@@ -14,7 +14,6 @@ type (
 	Repository interface {
 		CreateCustomer(ctx context.Context, c entity.Customer) (uuid.UUID, error)
 		GetCreditLimit(ctx context.Context, id uuid.UUID) (decimal.Decimal, error)
-		UpdateCreditLimit(ctx context.Context, id uuid.UUID, amount decimal.Decimal) error
 	}
 	repository struct {
 		db     *sqlx.DB
@@ -23,9 +22,8 @@ type (
 )
 
 const (
-	createCustomerQuery    string = `INSERT INTO customer (name, credit_limit) VALUES (:name, :credit_limit) RETURNING id`
-	getCreditLimitQuery    string = `SELECT credit_limit FROM customer WHERE id = $1`
-	updateCreditLimitQuery string = `UPDATE customer SET credit_limit = $1 WHERE id = $2`
+	createCustomerQuery string = `INSERT INTO customer (name, credit_limit) VALUES (:name, :credit_limit) RETURNING id`
+	getCreditLimitQuery string = `SELECT credit_limit FROM customer WHERE id = $1`
 )
 
 func New(db *sqlx.DB, logger log.Logger) Repository {
@@ -59,18 +57,4 @@ func (r repository) GetCreditLimit(ctx context.Context, id uuid.UUID) (decimal.D
 	}
 
 	return c.CreditLimit, nil
-}
-
-func (r repository) UpdateCreditLimit(ctx context.Context, id uuid.UUID, amount decimal.Decimal) error {
-	updateCreditLimitStmt, err := r.db.PreparexContext(ctx, updateCreditLimitQuery)
-	if err != nil {
-		return err
-	}
-	defer updateCreditLimitStmt.Close()
-
-	if _, err := updateCreditLimitStmt.ExecContext(ctx, amount, id); err != nil {
-		return err
-	}
-
-	return nil
 }

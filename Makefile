@@ -40,6 +40,10 @@ run-customer: ## run the customer service
 run-order: ## run the order service
 	go run ${LDFLAGS} cmd/order/main.go
 
+.PHONY: run-order-history
+run-order-history: ## run the order history service
+	go run ${LDFLAGS} cmd/orderHistory/main.go
+
 .PHONY: build
 build:  ## build the arm API server binary
 	CGO_ENABLED=0 go build ${LDFLAGS} -a -o server $(MODULE)/cmd/server
@@ -66,8 +70,8 @@ clean: ## remove temporary files
 version: ## display the version of the API server
 	@echo $(VERSION)
 
-.PHONY: db-start
-db-start: ## start the database server
+.PHONY: postgres-start
+postgres-start: ## start the postgres image
 	@mkdir -p testdata/postgres
 	docker run --rm --name postgres -v $(shell pwd)/testdata:/testdata \
 		--network app-tier \
@@ -78,9 +82,21 @@ db-start: ## start the database server
 		-c max_replication_slots=4 \
 		-c listen_addresses=*
 
-.PHONY: db-stop
-db-stop: ## stop the database server
+.PHONY: postgres-stop
+postgres-stop: ## stop the postgres image
 	docker stop postgres
+
+.PHONY: mongo-start
+mongo-start: ## start the mongo image
+	docker run --rm --name mongo -d -p 27017:27017 --network app-tier \
+		-v $(shell pwd)/testdata/mongo:/data/db -d \
+		-e MONGO_INITDB_ROOT_USERNAME=mongo \
+		-e MONGO_INITDB_ROOT_PASSWORD=mongo \
+		mongo
+
+.PHONY: mongo-stop
+mongo-stop: ## stop the mongo image
+	docker stop mongo
 
 .PHONY: zookeeper-start
 zookeeper-start: ## start the zookeeper

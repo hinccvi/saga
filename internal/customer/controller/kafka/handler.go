@@ -48,15 +48,15 @@ type (
 )
 
 const (
-	minMessageBytes int = 10e3
-	maxMessageBytes int = 10e6
+	minMessageBytes int    = 10e3
+	maxMessageBytes int    = 10e6
+	groupID         string = "order_group"
+	topic           string = "saga.public.order"
 )
 
-func RegisterCustomerHandlers(host, groupID, topic string, service service.Service, logger log.Logger) resource {
+func RegisterCustomerHandlers(host string, service service.Service, logger log.Logger) resource {
 	return resource{
 		host:     host,
-		groupID:  groupID,
-		topic:    topic,
 		minBytes: minMessageBytes,
 		maxBytes: maxMessageBytes,
 		logger:   logger,
@@ -64,13 +64,13 @@ func RegisterCustomerHandlers(host, groupID, topic string, service service.Servi
 	}
 }
 
-func (r resource) StartConsumer(ctx context.Context) <-chan error {
+func (r resource) StartOrderWALConsumer(ctx context.Context) <-chan error {
 	errCh := make(chan error)
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{r.host},
-		GroupID:  r.groupID,
-		Topic:    r.topic,
+		GroupID:  groupID,
+		Topic:    topic,
 		MinBytes: r.minBytes,
 		MaxBytes: r.maxBytes,
 	})
@@ -79,23 +79,26 @@ func (r resource) StartConsumer(ctx context.Context) <-chan error {
 		for {
 			m, err := reader.ReadMessage(ctx)
 			if err != nil {
-				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
+				r.logger.Errorf("[StartOrderWALConsumer] internal error: %w", err)
 				break
 			}
 
 			var om orderWALMessage
 			if err = json.Unmarshal(m.Value, &om); err != nil {
-				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
+				r.logger.Errorf("[StartOrderWALConsumer] internal error: %w", err)
+				continue
 			}
 
 			orderTotalByte, err := base64.StdEncoding.DecodeString(om.Payload.After.OrderTotal)
 			if err != nil {
-				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
+				r.logger.Errorf("[StartOrderWALConsumer] internal error: %w", err)
+				continue
 			}
 
-			scale, err := strconv.Atoi(om.Schema.Fields[1].Fields[2].Parameters.Scale)
+			scale, err := strconv.ParseInt(om.Schema.Fields[1].Fields[2].Parameters.Scale, 10, 32)
 			if err != nil {
-				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
+				r.logger.Errorf("[StartOrderWALConsumer] internal error: %w", err)
+				continue
 			}
 
 			orderTotal := decimal.NewFromBigInt(new(big.Int).SetBytes(orderTotalByte), -int32(scale))
@@ -106,12 +109,13 @@ func (r resource) StartConsumer(ctx context.Context) <-chan error {
 				Amount:     orderTotal,
 			}
 			if err = r.service.ReserveCredit(ctx, req); err != nil {
-				r.logger.Errorf("[startCustomerConsumer] internal error: %w", err)
+				r.logger.Errorf("[StartOrderWALConsumer] internal error: %w", err)
+				continue
 			}
 		}
 
 		if err := reader.Close(); err != nil {
-			errCh <- fmt.Errorf("[startCustomerConsumer] internal error: %w", err)
+			errCh <- fmt.Errorf("[StartOrderWALConsumer] internal error: %w", err)
 		}
 	}()
 
